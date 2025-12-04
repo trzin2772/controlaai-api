@@ -62,7 +62,30 @@ module.exports = async (req, res) => {
     const existingLicense = await collection.findOne({ licenseKey });
 
     if (existingLicense) {
-      // Chave já existe - verifica se é o mesmo dispositivo
+      // Chave existe no banco
+      
+      // Se está pendente (nunca foi ativada), permite primeira ativação
+      if (existingLicense.status === 'pending' && !existingLicense.deviceId) {
+        await collection.updateOne(
+          { licenseKey },
+          {
+            $set: {
+              deviceId: deviceId,
+              deviceInfo: deviceInfo || {},
+              activatedAt: new Date(),
+              lastVerified: new Date(),
+              status: 'active'
+            }
+          }
+        );
+
+        return res.status(200).json({
+          valid: true,
+          message: 'Licença ativada com sucesso!'
+        });
+      }
+      
+      // Se já está ativa, verifica se é o mesmo dispositivo
       if (existingLicense.deviceId === deviceId) {
         // Mesmo dispositivo - permite (reativação)
         await collection.updateOne(
