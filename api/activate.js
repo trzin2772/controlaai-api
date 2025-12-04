@@ -58,7 +58,7 @@ module.exports = async (req, res) => {
 
     const collection = await getLicensesCollection();
 
-    // Verifica se a chave já existe
+    // NOVA PROTEÇÃO: Verifica se a chave existe e está disponível
     const existingLicense = await collection.findOne({ licenseKey });
 
     if (existingLicense) {
@@ -88,21 +88,11 @@ module.exports = async (req, res) => {
       }
     }
 
-    // Chave nova - cria registro
-    const licenseData = {
-      licenseKey,
-      deviceId,
-      deviceInfo: deviceInfo || {},
-      activatedAt: new Date(),
-      lastVerified: new Date(),
-      status: 'active'
-    };
-
-    await collection.insertOne(licenseData);
-
-    return res.status(200).json({
-      valid: true,
-      message: 'Licença ativada com sucesso!'
+    // IMPORTANTE: Chave não existe no banco - BLOQUEIA!
+    // Isso impede que clientes inventem chaves aleatórias
+    return res.status(403).json({
+      valid: false,
+      message: 'Chave inválida. Entre em contato com o suporte.'
     });
 
   } catch (error) {
