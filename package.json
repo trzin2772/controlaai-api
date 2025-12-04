@@ -1,0 +1,16 @@
+{
+  "name": "controlaai-api",
+  "version": "1.0.0",
+  "description": "API de validação de licenças do ControlaAI",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "mongodb": "^6.3.0"
+  },
+  "engines": {
+    "node": ">=18.x"
+  }
+}
