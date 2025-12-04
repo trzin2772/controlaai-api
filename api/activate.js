@@ -1,4 +1,25 @@
-const { getLicensesCollection } = require('../lib/db');
+const { MongoClient } = require('mongodb');
+
+const uri = process.env.MONGODB_URI;
+let cachedClient = null;
+
+async function getLicensesCollection() {
+  if (!uri) {
+    throw new Error('MONGODB_URI não configurada');
+  }
+
+  if (cachedClient) {
+    const db = cachedClient.db('controlaai');
+    return db.collection('licenses');
+  }
+
+  const client = new MongoClient(uri);
+  await client.connect();
+  cachedClient = client;
+  
+  const db = client.db('controlaai');
+  return db.collection('licenses');
+}
 
 module.exports = async (req, res) => {
   // Configura CORS
