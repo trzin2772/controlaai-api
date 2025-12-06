@@ -27,6 +27,57 @@ export default async function handler(req, res) {
     // Webhook do Hotmart envia dados em formato específico
     const { event, data, source } = req.body;
 
+    // Se for request de geração manual (não Hotmart), processar assim
+    const { email, nome, adminKey } = req.body;
+    if (email && nome && adminKey) {
+      // Geração manual de chave
+      if (adminKey !== 'controlaai-admin-2025-secret-key' && adminKey !== process.env.ADMIN_KEY) {
+        return res.status(401).json({ success: false, message: 'Admin key inválida' });
+      }
+
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return res.status(400).json({ success: false, message: 'Email inválido' });
+      }
+
+      const licenseKey = gerarChaveLicenca();
+      const client = new MongoClient(MONGODB_URI);
+      await client.connect();
+      const db = client.db('controlaai');
+      const collection = db.collection('licenses');
+
+      const existente = await collection.findOne({ email });
+      if (existente) {
+        await client.close();
+        return res.status(400).json({ success: false, message: 'Já existe licença para este email', existingKey: existente.licenseKey });
+      }
+
+      const license = {
+        licenseKey,
+        email,
+        customerName: nome,
+        productName: 'ControlaAI',
+        createdAt: new Date(),
+        expirationDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+        status: 'active',
+        activated: false,
+        devices: [],
+        transactions: []
+      };
+
+      await collection.insertOne(license);
+      await client.close();
+
+      return res.status(200).json({
+        success: true,
+        licenseKey,
+        email,
+        customerName: nome,
+        expirationDate: license.expirationDate
+      });
+    }
+
+    // Webhook do Hotmart envia dados em formato específico
     console.log('📨 Webhook Hotmart recebido:', { event, source });
 
     // Valida se é realmente do Hotmart (você pode adicionar token de verificação)
