@@ -26,6 +26,17 @@ export default async function handler(req, res) {
 
     const configCollection = await getConfigCollection();
     
+    // Primeiro, remove campos duplicados ou antigos
+    await configCollection.updateOne(
+      { _id: 'app-config' },
+      { 
+        $unset: { 
+          elevenLabsVoiceId: "",
+          elevenLabsApiKey: ""
+        }
+      }
+    );
+    
     // Prepara os dados para atualização
     const updateData = {
       updatedAt: new Date()
