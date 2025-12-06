@@ -24,8 +24,13 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Debug: log tudo que chega
+    console.log('DEBUG - Request body:', JSON.stringify(req.body));
+    
     // Verificar se é request de envio de email
-    const { licenseKey, email, nome, adminKey, sendEmail } = req.body;
+    const { licenseKey, email, nome, adminKey, sendEmail, generateLicense } = req.body;
+    
+    console.log('DEBUG - Vars:', { generateLicense, email, nome, sendEmail, licenseKey });
     
     if (sendEmail && licenseKey && email) {
       // Validar admin key
