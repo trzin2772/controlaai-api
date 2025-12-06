@@ -1,9 +1,32 @@
 import { MongoClient } from 'mongodb';
 import crypto from 'crypto';
+import nodemailer from 'nodemailer';
 
 const MONGODB_URI = process.env.MONGODB_URI;
-const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
 const EMAIL_FROM = process.env.EMAIL_FROM || 'controlaaifinancas@gmail.com';
+const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
+
+// Configura transportador de email
+let transporter = null;
+
+function getEmailTransporter() {
+  if (transporter) return transporter;
+
+  if (GMAIL_APP_PASSWORD) {
+    transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: EMAIL_FROM,
+        pass: GMAIL_APP_PASSWORD
+      }
+    });
+    console.log('✅ Email transporter configurado com Gmail');
+  } else {
+    console.warn('⚠️ GMAIL_APP_PASSWORD não configurada - emails não serão enviados');
+  }
+
+  return transporter;
+}
 
 function gerarChaveLicenca() {
   // Gera uma chave UUID-like sem dependência externa
@@ -12,8 +35,10 @@ function gerarChaveLicenca() {
 }
 
 async function enviarEmailComChave(email, nomeCliente, chave) {
-  if (!SENDGRID_API_KEY) {
-    console.warn('⚠️ SENDGRID_API_KEY não configurada - email não será enviado');
+  const transporter = getEmailTransporter();
+  
+  if (!transporter) {
+    console.warn('⚠️ Transporter de email não disponível');
     return false;
   }
 
@@ -81,44 +106,20 @@ async function enviarEmailComChave(email, nomeCliente, chave) {
     </html>
     `;
 
-    const payload = {
-      personalizations: [
-        {
-          to: [{ email, name: nomeCliente }],
-          subject: assunto
-        }
-      ],
-      from: { email: EMAIL_FROM, name: 'ControlaAI' },
-      content: [
-        {
-          type: 'text/html',
-          value: htmlContent
-        }
-      ]
-    };
-
-    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${SENDGRID_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
+    const info = await transporter.sendMail({
+      from: EMAIL_FROM,
+      to: email,
+      subject: assunto,
+      html: htmlContent
     });
 
-    if (response.status === 202) {
-      console.log('✅ Email enviado com sucesso para', email);
-      return true;
-    } else {
-      console.error('❌ Erro ao enviar email:', response.status, response.statusText);
-      return false;
-    }
+    console.log('✅ Email enviado com sucesso para', email, 'MessageID:', info.messageId);
+    return true;
 
   } catch (error) {
     console.error('❌ Erro ao enviar email:', error.message);
     return false;
   }
-}
 
 export default async function handler(req, res) {
   // Configura CORS
