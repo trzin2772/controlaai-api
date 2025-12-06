@@ -1,125 +1,13 @@
 import { MongoClient } from 'mongodb';
 import crypto from 'crypto';
-import nodemailer from 'nodemailer';
 
 const MONGODB_URI = process.env.MONGODB_URI;
-const EMAIL_FROM = process.env.EMAIL_FROM || 'controlaaifinancas@gmail.com';
-const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
-
-// Configura transportador de email
-let transporter = null;
-
-function getEmailTransporter() {
-  if (transporter) return transporter;
-
-  if (GMAIL_APP_PASSWORD) {
-    transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: EMAIL_FROM,
-        pass: GMAIL_APP_PASSWORD
-      }
-    });
-    console.log('✅ Email transporter configurado com Gmail');
-  } else {
-    console.warn('⚠️ GMAIL_APP_PASSWORD não configurada - emails não serão enviados');
-  }
-
-  return transporter;
-}
 
 function gerarChaveLicenca() {
   // Gera uma chave UUID-like sem dependência externa
   return crypto.randomBytes(16).toString('hex')
     .replace(/(.{8})(.{4})(.{4})(.{4})(.{12})/, '$1-$2-$3-$4-$5');
 }
-
-async function enviarEmailComChave(email, nomeCliente, chave) {
-  const transporter = getEmailTransporter();
-  
-  if (!transporter) {
-    console.warn('⚠️ Transporter de email não disponível');
-    return false;
-  }
-
-  try {
-    const assunto = 'Seu ControlaAI foi ativado! 🎉';
-    const htmlContent = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="utf-8">
-        <style>
-            body { font-family: Arial, sans-serif; background-color: #f5f5f5; }
-            .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
-            .header { text-align: center; color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 20px; }
-            .content { padding: 20px 0; }
-            .chave { background-color: #ecf0f1; padding: 15px; border-radius: 5px; text-align: center; margin: 20px 0; }
-            .chave-texto { font-size: 18px; font-weight: bold; color: #2c3e50; font-family: monospace; word-break: break-all; }
-            .botao { display: inline-block; background-color: #3498db; color: white; padding: 12px 24px; border-radius: 5px; text-decoration: none; margin: 20px 0; }
-            .rodape { text-align: center; color: #7f8c8d; font-size: 12px; border-top: 1px solid #ecf0f1; padding-top: 20px; margin-top: 20px; }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <h1>🎉 Bem-vindo ao ControlaAI!</h1>
-            </div>
-            
-            <div class="content">
-                <p>Olá <strong>${nomeCliente}</strong>,</p>
-                
-                <p>Obrigado por comprar o <strong>ControlaAI</strong>! 🙌</p>
-                
-                <p>Sua chave de ativação está pronta. Use-a para ativar o app no seu celular:</p>
-                
-                <div class="chave">
-                    <p style="margin: 0; color: #7f8c8d; font-size: 12px;">CHAVE DE ATIVAÇÃO</p>
-                    <p class="chave-texto">${chave}</p>
-                </div>
-                
-                <h3>Como usar:</h3>
-                <ol>
-                    <li>Baixe o app ControlaAI no seu celular</li>
-                    <li>Abra o app e clique em "Ativar"</li>
-                    <li>Cole ou digite esta chave: <code>${chave}</code></li>
-                    <li>Pronto! Comece a controlar seus gastos! 💰</li>
-                </ol>
-                
-                <p style="text-align: center;">
-                    <a href="https://play.google.com/store/apps/details?id=com.controlaai" class="botao">
-                        Baixar ControlaAI
-                    </a>
-                </p>
-                
-                <p>Se tiver dúvidas, responda este email que ajudaremos! 📧</p>
-                
-                <p>Abraços,<br><strong>Time ControlaAI</strong> 🚀</p>
-            </div>
-            
-            <div class="rodape">
-                <p>Este é um email automático. Não responda diretamente.</p>
-                <p>Qualquer dúvida, contate: controlaaifinancas@gmail.com</p>
-            </div>
-        </div>
-    </body>
-    </html>
-    `;
-
-    const info = await transporter.sendMail({
-      from: EMAIL_FROM,
-      to: email,
-      subject: assunto,
-      html: htmlContent
-    });
-
-    console.log('✅ Email enviado com sucesso para', email, 'MessageID:', info.messageId);
-    return true;
-
-  } catch (error) {
-    console.error('❌ Erro ao enviar email:', error.message);
-    return false;
-  }
 
 export default async function handler(req, res) {
   // Configura CORS
@@ -185,15 +73,16 @@ export default async function handler(req, res) {
 
       console.log('✅ Licença criada:', licenseKey, 'para', buyer.email);
 
-      // Envia email com a chave
-      const emailEnviado = await enviarEmailComChave(buyer.email, buyer.name || 'Cliente', licenseKey);
+      // Email será enviado manualmente via script PowerShell ou integração Hotmart
+      // Use o script: gerar-e-enviar-chave.ps1
 
       return res.status(200).json({
         success: true,
         message: 'Licença gerada com sucesso',
         licenseKey,
         email: buyer.email,
-        emailSent: emailEnviado
+        emailSent: false,
+        instructions: 'Use o script gerar-e-enviar-chave.ps1 para enviar email ao cliente'
       });
     }
 
