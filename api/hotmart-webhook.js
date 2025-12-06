@@ -43,10 +43,10 @@ export default async function handler(req, res) {
       });
     }
 
-    // Verificar se é request de geração de chave manual (email + nome + adminKey)
-    if (email && nome && adminKey) {
+    // Verificar se é request de geração de chave manual
+    if (generateLicense && email && nome) {
       // Validar admin key
-      if (adminKey !== 'controlaai-admin-2025-secret-key' && adminKey !== process.env.ADMIN_KEY) {
+      if (!adminKey || (adminKey !== 'controlaai-admin-2025-secret-key' && adminKey !== process.env.ADMIN_KEY)) {
         return res.status(401).json({ success: false, message: 'Admin key inválida' });
       }
 
