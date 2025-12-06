@@ -10,7 +10,7 @@ function gerarChaveLicenca() {
     .replace(/(.{8})(.{4})(.{4})(.{4})(.{12})/, '$1-$2-$3-$4-$5');
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   // Configura CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -64,6 +64,7 @@ export default async function handler(req, res) {
     // Verifica se já existe licença para este email
     const existente = await collection.findOne({ email });
     if (existente) {
+      await client.close();
       console.log('⚠️ Já existe licença para', email);
       return res.status(400).json({
         success: false,
@@ -110,3 +111,5 @@ export default async function handler(req, res) {
     });
   }
 }
+
+export default handler;
