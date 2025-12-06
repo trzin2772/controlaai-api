@@ -2,7 +2,7 @@ import { MongoClient } from 'mongodb';
 import crypto from 'crypto';
 
 const MONGODB_URI = process.env.MONGODB_URI;
-const ADMIN_KEY = process.env.ADMIN_KEY;
+const ADMIN_KEY = process.env.ADMIN_KEY || 'controlaai-admin-2025-secret-key';
 
 function gerarChaveLicenca() {
   // Gera uma chave UUID-like
