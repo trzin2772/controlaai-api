@@ -43,15 +43,67 @@ export default async function handler(req, res) {
       });
     }
 
-    // Verificar se é request de geração de chave manual
+    // Verificar se é request de geração de chave manual (email + nome + adminKey)
+    if (email && nome && adminKey) {
+      // Validar admin key
+      if (adminKey !== 'controlaai-admin-2025-secret-key' && adminKey !== process.env.ADMIN_KEY) {
+        return res.status(401).json({ success: false, message: 'Admin key inválida' });
+      }
 
-    // Valida se é realmente do Hotmart (você pode adicionar token de verificação)
-    // const token = req.headers.authorization;
-    // if (!token || token !== `Bearer ${process.env.HOTMART_WEBHOOK_TOKEN}`) {
-    //   return res.status(401).json({ error: 'Token inválido' });
-    // }
+      // Validar email
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return res.status(400).json({ success: false, message: 'Email inválido' });
+      }
 
-    // Processa diferentes tipos de eventos
+      // Gerar chave
+      const licenseKey = gerarChaveLicenca();
+      const client = new MongoClient(MONGODB_URI);
+      await client.connect();
+      const db = client.db('controlaai');
+      const collection = db.collection('licenses');
+
+      // Verificar se já existe
+      const existente = await collection.findOne({ email });
+      if (existente) {
+        await client.close();
+        return res.status(400).json({
+          success: false,
+          message: 'Já existe licença para este email',
+          existingKey: existente.licenseKey
+        });
+      }
+
+      // Criar licença
+      const license = {
+        licenseKey,
+        email,
+        customerName: nome,
+        productName: 'ControlaAI',
+        createdAt: new Date(),
+        expirationDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+        status: 'active',
+        activated: false,
+        devices: [],
+        transactions: []
+      };
+
+      await collection.insertOne(license);
+      await client.close();
+
+      return res.status(200).json({
+        success: true,
+        licenseKey,
+        email,
+        customerName: nome,
+        expirationDate: license.expirationDate
+      });
+    }
+
+    // Se não for nenhum dos acima, trata como webhook do Hotmart
+    // Extrair event e data do request
+    const { event, data, source } = req.body;
+
     if (event === 'PURCHASE') {
       const { buyer, product } = data;
 
