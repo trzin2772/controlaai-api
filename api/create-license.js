@@ -1,16 +1,16 @@
-import { MongoClient } from 'mongodb';
-import crypto from 'crypto';
+const { MongoClient } = require('mongodb');
+const crypto = require('crypto');
 
 const MONGODB_URI = process.env.MONGODB_URI;
 const ADMIN_KEY = process.env.ADMIN_KEY || 'controlaai-admin-2025-secret-key';
 
 function gerarChaveLicenca() {
-  // Gera uma chave UUID-like
+  // Gera uma chave UUID-like: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
   return crypto.randomBytes(16).toString('hex')
     .replace(/(.{8})(.{4})(.{4})(.{4})(.{12})/, '$1-$2-$3-$4-$5');
 }
 
-async function handler(req, res) {
+module.exports = async (req, res) => {
   // Configura CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -65,10 +65,10 @@ async function handler(req, res) {
     const existente = await collection.findOne({ email });
     if (existente) {
       await client.close();
-      console.log('⚠️ Já existe licença para', email);
+      console.log('Ja existe licenca para', email);
       return res.status(400).json({
         success: false,
-        message: 'Já existe uma licença ativa para este email',
+        message: 'Ja existe uma licenca ativa para este email',
         existingKey: existente.licenseKey
       });
     }
@@ -91,11 +91,11 @@ async function handler(req, res) {
     await collection.insertOne(license);
     await client.close();
 
-    console.log('✅ Licença criada manualmente:', licenseKey, 'para', email);
+    console.log('Licenca criada manualmente:', licenseKey, 'para', email);
 
     return res.status(200).json({
       success: true,
-      message: 'Chave de licença gerada com sucesso',
+      message: 'Chave de licenca gerada com sucesso',
       licenseKey,
       email,
       customerName: nome,
@@ -104,7 +104,7 @@ async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error('❌ Erro ao gerar chave:', error);
+    console.error('Erro ao gerar chave:', error);
     return res.status(500).json({
       success: false,
       error: error.message
@@ -112,4 +112,4 @@ async function handler(req, res) {
   }
 }
 
-export default handler;
+module.exports = handler;
