@@ -1,13 +1,12 @@
 import { MongoClient } from 'mongodb';
-import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
-async function getLicensesCollection() {
-  const client = new MongoClient(MONGODB_URI);
-  await client.connect();
-  const db = client.db('controlaai');
-  return db.collection('licenses');
+function gerarChaveLicenca() {
+  // Gera uma chave UUID-like sem dependência externa
+  return crypto.randomBytes(16).toString('hex')
+    .replace(/(.{8})(.{4})(.{4})(.{4})(.{12})/, '$1-$2-$3-$4-$5');
 }
 
 export default async function handler(req, res) {
@@ -47,9 +46,13 @@ export default async function handler(req, res) {
         });
       }
 
-      // Gera chave de licença única (UUID)
-      const licenseKey = uuidv4();
-      const collection = await getLicensesCollection();
+      // Gera chave de licença única (UUID-like)
+      const licenseKey = gerarChaveLicenca();
+      
+      const client = new MongoClient(MONGODB_URI);
+      await client.connect();
+      const db = client.db('controlaai');
+      const collection = db.collection('licenses');
 
       // Salva a licença no MongoDB
       const license = {
@@ -91,7 +94,10 @@ export default async function handler(req, res) {
         });
       }
 
-      const collection = await getLicensesCollection();
+      const client = new MongoClient(MONGODB_URI);
+      await client.connect();
+      const db = client.db('controlaai');
+      const collection = db.collection('licenses');
 
       // Revoga todas as licenças do cliente
       await collection.updateMany(
