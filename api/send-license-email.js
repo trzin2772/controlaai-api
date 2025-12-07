@@ -2,121 +2,237 @@ import { MongoClient } from 'mongodb';
 import nodemailer from 'nodemailer';
 
 const MONGODB_URI = process.env.MONGODB_URI;
+const ADMIN_KEY = process.env.ADMIN_KEY || 'controlaai-admin-2025-secret-key';
+const GMAIL_USER = process.env.EMAIL_FROM || process.env.SUPPORT_EMAIL;
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
-const EMAIL_FROM = process.env.EMAIL_FROM || 'seu-email@gmail.com';
+
+// Configura transportador Gmail
+let transporter = null;
+if (GMAIL_APP_PASSWORD && GMAIL_USER) {
+  transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: GMAIL_USER,
+      pass: GMAIL_APP_PASSWORD
+    }
+  });
+}
 
 export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  const { licenseKey, email, nome, adminKey } = req.body;
-
-  // Validar admin key
-  if (adminKey !== process.env.ADMIN_KEY && adminKey !== 'controlaai-admin-2025-secret-key') {
-    return res.status(401).json({ success: false, message: 'Admin key inválida' });
-  }
-
-  // Validar email
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return res.status(400).json({ success: false, message: 'Email inválido' });
-  }
-
-  // Validar license key
-  if (!licenseKey || licenseKey.trim() === '') {
-    return res.status(400).json({ success: false, message: 'License key inválida' });
+    return res.status(405).json({ error: 'Método não permitido' });
   }
 
   try {
+    const { licenseKey, email, nome, adminKey } = req.body;
+
+    if (!adminKey || adminKey !== ADMIN_KEY) {
+      return res.status(401).json({ success: false, message: 'Admin key inválida' });
+    }
+
+    if (!licenseKey || !email) {
+      return res.status(400).json({ success: false, message: 'Chave e email obrigatórios' });
+    }
+
+    // Verifica se a chave existe no banco
     const client = new MongoClient(MONGODB_URI);
     await client.connect();
     const db = client.db('controlaai');
-    const licensesCollection = db.collection('licenses');
+    const collection = db.collection('licenses');
 
-    // Verificar se a chave existe
-    const license = await licensesCollection.findOne({ licenseKey });
+    const license = await collection.findOne({ licenseKey });
+    
     if (!license) {
       await client.close();
-      return res.status(404).json({ success: false, message: 'Chave de licença não encontrada' });
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Chave não encontrada no banco de dados' 
+      });
     }
 
-    // Configurar transporter do Gmail
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: EMAIL_FROM,
-        pass: GMAIL_APP_PASSWORD
-      }
-    });
-
-    // Preparar email
-    const mailOptions = {
-      from: EMAIL_FROM,
-      to: email,
-      subject: 'Sua Chave de Ativação ControlaAI 🔓',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #007bff;">Bem-vindo ao ControlaAI! 🎉</h2>
-          
-          <p>Olá <strong>${nome}</strong>,</p>
-          
-          <p>Sua chave de ativação foi gerada com sucesso! Use o código abaixo para ativar o app ControlaAI:</p>
-          
-          <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center;">
-            <p style="margin: 0; color: #666; font-size: 12px;">CHAVE DE ATIVAÇÃO</p>
-            <h3 style="margin: 10px 0; color: #007bff; font-size: 24px; letter-spacing: 2px;">${licenseKey}</h3>
-            <p style="margin: 0; color: #999; font-size: 12px;">Válida até: ${license.expirationDate}</p>
-          </div>
-          
-          <h3 style="color: #333;">Como Ativar:</h3>
-          <ol>
-            <li>Abra o app ControlaAI no seu celular</li>
-            <li>Clique em "Ativar Licença"</li>
-            <li>Cole a chave acima: <strong>${licenseKey}</strong></li>
-            <li>Clique em "Ativar"</li>
-            <li>Pronto! Seu app será ativado automaticamente 🚀</li>
-          </ol>
-          
-          <h3 style="color: #333;">Informações Importantes:</h3>
-          <ul>
-            <li><strong>Email:</strong> ${email}</li>
-            <li><strong>Data de Ativação:</strong> ${new Date().toLocaleDateString('pt-BR')}</li>
-            <li><strong>Validade:</strong> 1 ano a partir da ativação</li>
-            <li><strong>Suporte:</strong> Abra um ticket no app ou envie um email</li>
-          </ul>
-          
-          <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #999;">
-            <p>Se não solicitou essa chave, ignore este email.</p>
-            <p>© 2025 ControlaAI. Todos os direitos reservados.</p>
-          </div>
-        </div>
-      `,
-      text: \`Sua Chave de Ativação: \${licenseKey}\n\nCole esta chave no app ControlaAI para ativar sua licença.\n\nValidade: \${license.expirationDate}\`
-    };
-
-    // Enviar email
-    await transporter.sendMail(mailOptions);
-
-    // Atualizar license com timestamp de envio
-    await licensesCollection.updateOne(
-      { licenseKey },
-      { $set: { emailSentAt: new Date(), sentTo: email } }
-    );
+    if (license.email !== email) {
+      await client.close();
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Email não corresponde à chave' 
+      });
+    }
 
     await client.close();
 
-    return res.status(200).json({
-      success: true,
-      message: 'Email enviado com sucesso!',
-      email,
-      sentAt: new Date().toISOString()
-    });
+    // Monta o email
+    const emailHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+    .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+    .key-box { background: #fff; border: 2px dashed #667eea; padding: 20px; text-align: center; margin: 20px 0; border-radius: 8px; }
+    .key { font-size: 24px; font-weight: bold; color: #667eea; letter-spacing: 2px; font-family: monospace; }
+    .button { display: inline-block; background: #667eea; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+    .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+    .steps { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
+    .step { margin: 15px 0; padding-left: 30px; position: relative; }
+    .step:before { content: "✓"; position: absolute; left: 0; color: #667eea; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🎉 Bem-vindo ao ControlaAI!</h1>
+      <p>Sua chave de ativação está pronta</p>
+    </div>
+    
+    <div class="content">
+      <p>Olá <strong>${nome || 'Cliente'}</strong>,</p>
+      
+      <p>Obrigado por adquirir o <strong>ControlaAI</strong>! Seu app de controle financeiro pessoal está pronto para uso.</p>
+      
+      <div class="key-box">
+        <p style="margin: 0 0 10px 0; color: #666;">Sua Chave de Ativação:</p>
+        <div class="key">${licenseKey}</div>
+      </div>
+      
+      <div class="steps">
+        <h3 style="color: #667eea; margin-top: 0;">📱 Como Ativar:</h3>
+        <div class="step">Baixe o app ControlaAI</div>
+        <div class="step">Abra o aplicativo pela primeira vez</div>
+        <div class="step">Cole ou digite sua chave de ativação</div>
+        <div class="step">Pronto! Comece a controlar suas finanças</div>
+      </div>
+      
+      <p style="margin-top: 30px;"><strong>⚠️ Importante:</strong></p>
+      <ul>
+        <li>Guarde esta chave em local seguro</li>
+        <li>A chave funciona apenas em 1 dispositivo</li>
+        <li>Validade: 1 ano a partir da ativação</li>
+        <li>Em caso de problemas, entre em contato com o suporte</li>
+      </ul>
+      
+      <p style="text-align: center; margin-top: 30px;">
+        <strong>Precisa de ajuda?</strong><br>
+        Entre em contato: <a href="mailto:${GMAIL_USER}">${GMAIL_USER}</a>
+      </p>
+    </div>
+    
+    <div class="footer">
+      <p>© 2025 ControlaAI - Controle Financeiro Pessoal</p>
+      <p>Este é um email automático, por favor não responda.</p>
+    </div>
+  </div>
+</body>
+</html>
+    `.trim();
+
+    // Texto simples do email
+    const emailText = `
+Olá ${nome || 'Cliente'},
+
+Obrigado por adquirir o ControlaAI!
+
+Sua Chave de Ativação: ${licenseKey}
+
+Como Ativar:
+1. Baixe o app ControlaAI
+2. Abra o aplicativo pela primeira vez
+3. Cole ou digite sua chave de ativação
+4. Pronto! Comece a controlar suas finanças
+
+Importante:
+- Guarde esta chave em local seguro
+- A chave funciona apenas em 1 dispositivo
+- Validade: 1 ano a partir da ativação
+
+Precisa de ajuda? Entre em contato: ${GMAIL_USER}
+
+Atenciosamente,
+Equipe ControlaAI
+    `.trim();
+
+    // Envia email via Gmail
+    if (transporter) {
+      try {
+        const mailOptions = {
+          from: `"ControlaAI" <${GMAIL_USER}>`,
+          to: email,
+          subject: '🎉 Sua chave de ativação do ControlaAI está pronta!',
+          text: emailText,
+          html: emailHtml
+        };
+
+        const info = await transporter.sendMail(mailOptions);
+        console.log('✅ Email enviado via Gmail:', info.messageId);
+
+        // Atualiza a licença para marcar que o email foi enviado
+        const client2 = new MongoClient(MONGODB_URI);
+        await client2.connect();
+        const db2 = client2.db('controlaai');
+        const collection2 = db2.collection('licenses');
+        
+        await collection2.updateOne(
+          { licenseKey },
+          { 
+            $set: { 
+              emailSentAt: new Date(),
+              lastEmailSent: new Date(),
+              emailMessageId: info.messageId
+            } 
+          }
+        );
+        
+        await client2.close();
+
+        return res.status(200).json({
+          success: true,
+          message: 'Email enviado com sucesso!',
+          email,
+          licenseKey,
+          sentAt: new Date().toISOString(),
+          provider: 'Gmail',
+          messageId: info.messageId
+        });
+
+      } catch (emailError) {
+        console.error('❌ Erro ao enviar via Gmail:', emailError);
+        
+        return res.status(500).json({
+          success: false,
+          message: 'Erro ao enviar email via Gmail',
+          error: emailError.message,
+          details: emailError.response || 'Sem detalhes adicionais'
+        });
+      }
+    } else {
+      console.log('⚠️ Gmail não configurado, retornando preview');
+      
+      return res.status(200).json({
+        success: false,
+        message: 'Gmail não configurado (faltam GMAIL_APP_PASSWORD ou EMAIL_FROM)',
+        email,
+        licenseKey,
+        provider: 'Simulado',
+        emailContent: emailHtml
+      });
+    }
 
   } catch (error) {
-    console.error('Erro ao enviar email:', error);
+    console.error('❌ Erro ao enviar email:', error);
     return res.status(500).json({
       success: false,
-      message: 'Erro ao enviar email: ' + error.message
+      message: 'Erro ao enviar email',
+      error: error.message
     });
   }
 }

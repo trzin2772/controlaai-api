@@ -8,7 +8,9 @@
     "deploy": "vercel --prod"
   },
   "dependencies": {
-    "mongodb": "^6.3.0"
+    "@sendgrid/mail": "^8.1.6",
+    "mongodb": "^6.3.0",
+    "nodemailer": "^7.0.11"
   },
   "engines": {
     "node": ">=18.x"

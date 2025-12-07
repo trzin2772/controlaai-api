@@ -24,13 +24,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Debug: log tudo que chega
-    console.log('DEBUG - Request body:', JSON.stringify(req.body));
-    
     // Verificar se é request de envio de email
-    const { licenseKey, email, nome, adminKey, sendEmail, generateLicense } = req.body;
-    
-    console.log('DEBUG - Vars:', { generateLicense, email, nome, sendEmail, licenseKey });
+    const { licenseKey, email, nome, adminKey, sendEmail } = req.body;
     
     if (sendEmail && licenseKey && email) {
       // Validar admin key
@@ -49,67 +44,20 @@ export default async function handler(req, res) {
     }
 
     // Verificar se é request de geração de chave manual
-    if (generateLicense && email && nome) {
-      // Validar admin key
-      if (!adminKey || (adminKey !== 'controlaai-admin-2025-secret-key' && adminKey !== process.env.ADMIN_KEY)) {
-        return res.status(401).json({ success: false, message: 'Admin key inválida' });
-      }
 
-      // Validar email
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
-        return res.status(400).json({ success: false, message: 'Email inválido' });
-      }
+    // Extrai dados do webhook da Hotmart
+    const { event, data } = req.body;
 
-      // Gerar chave
-      const licenseKey = gerarChaveLicenca();
-      const client = new MongoClient(MONGODB_URI);
-      await client.connect();
-      const db = client.db('controlaai');
-      const collection = db.collection('licenses');
+    console.log('📥 Webhook recebido:', { event, data });
 
-      // Verificar se já existe
-      const existente = await collection.findOne({ email });
-      if (existente) {
-        await client.close();
-        return res.status(400).json({
-          success: false,
-          message: 'Já existe licença para este email',
-          existingKey: existente.licenseKey
-        });
-      }
+    // Valida se é realmente do Hotmart (você pode adicionar token de verificação)
+    // const token = req.headers.authorization;
+    // if (!token || token !== `Bearer ${process.env.HOTMART_WEBHOOK_TOKEN}`) {
+    //   return res.status(401).json({ error: 'Token inválido' });
+    // }
 
-      // Criar licença
-      const license = {
-        licenseKey,
-        email,
-        customerName: nome,
-        productName: 'ControlaAI',
-        createdAt: new Date(),
-        expirationDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-        status: 'active',
-        activated: false,
-        devices: [],
-        transactions: []
-      };
-
-      await collection.insertOne(license);
-      await client.close();
-
-      return res.status(200).json({
-        success: true,
-        licenseKey,
-        email,
-        customerName: nome,
-        expirationDate: license.expirationDate
-      });
-    }
-
-    // Se não for nenhum dos acima, trata como webhook do Hotmart
-    // Extrair event e data do request
-    const { event, data, source } = req.body;
-
-    if (event === 'PURCHASE') {
+    // Processa diferentes tipos de eventos
+    if (event === 'PURCHASE_APPROVED' || event === 'PURCHASE_COMPLETE' || event === 'PURCHASE') {
       const { buyer, product } = data;
 
       if (!buyer || !buyer.email) {
@@ -136,8 +84,10 @@ export default async function handler(req, res) {
         productName: product?.name || 'ControlaAI',
         purchaseDate: new Date(),
         expirationDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 ano
-        status: 'active',
+        status: 'pending', // Inicia como pending até primeira ativação
         activated: false,
+        deviceId: null, // Será preenchido na ativação
+        deviceInfo: {},
         devices: [],
         transactions: []
       };

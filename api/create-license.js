@@ -59,10 +59,12 @@ export default async function handler(req, res) {
       email,
       customerName: nome,
       productName: 'ControlaAI',
-      createdAt: new Date(),
+      purchaseDate: new Date(),
       expirationDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-      status: 'active',
+      status: 'pending',
       activated: false,
+      deviceId: null,
+      deviceInfo: {},
       devices: [],
       transactions: []
     };

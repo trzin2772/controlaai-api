@@ -71,6 +71,7 @@ module.exports = async (req, res) => {
             email: normalizedEmail,
             transacoes: data.transacoes || [],
             despesasFixas: data.despesasFixas || [], // Cada despesa tem array de pagamentos interno
+            cofres: data.cofres || [], // Sistema de cofres
             lastBackup: new Date().toISOString(),
             version: data.version || '2.0'
         };
@@ -90,6 +91,9 @@ module.exports = async (req, res) => {
         const totalPagamentos = (data.despesasFixas || []).reduce((sum, d) => 
             sum + (d.pagamentos ? d.pagamentos.length : 0), 0);
 
+        // Calcula total guardado em cofres
+        const totalCofres = (data.cofres || []).reduce((sum, c) => sum + (c.saldo || 0), 0);
+
         return res.status(200).json({
             success: true,
             message: 'Backup realizado com sucesso!',
@@ -98,7 +102,9 @@ module.exports = async (req, res) => {
                 timestamp: backupData.lastBackup,
                 transacoes: backupData.transacoes.length,
                 despesasFixas: backupData.despesasFixas.length,
-                pagamentos: totalPagamentos
+                pagamentos: totalPagamentos,
+                cofres: backupData.cofres.length,
+                totalCofres: totalCofres
             }
         });
 

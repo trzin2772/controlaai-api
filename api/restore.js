@@ -75,6 +75,7 @@ module.exports = async (req, res) => {
             data: {
                 transacoes: backupData.transacoes || [],
                 despesasFixas: backupData.despesasFixas || [],
+                cofres: backupData.cofres || [],
                 // Mantém pagamentosDespesas para compatibilidade com backups antigos
                 // O frontend fará a migração automática se necessário
                 pagamentosDespesas: backupData.pagamentosDespesas || [],
@@ -84,8 +85,10 @@ module.exports = async (req, res) => {
             stats: {
                 transacoes: (backupData.transacoes || []).length,
                 despesasFixas: (backupData.despesasFixas || []).length,
+                cofres: (backupData.cofres || []).length,
                 pagamentos: (backupData.despesasFixas || []).reduce((sum, d) => 
-                    sum + (d.pagamentos ? d.pagamentos.length : 0), 0)
+                    sum + (d.pagamentos ? d.pagamentos.length : 0), 0),
+                totalCofres: (backupData.cofres || []).reduce((sum, c) => sum + (c.saldo || 0), 0)
             }
         });
 
