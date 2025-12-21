@@ -99,7 +99,9 @@ export default async function handler(req, res) {
 
       // Envia email automaticamente
       try {
-        const emailResponse = await fetch(`${process.env.VERCEL_URL || 'https://controlaai-api.vercel.app'}/api/send-license-email`, {
+        const apiUrl = 'https://controlaai-api.vercel.app/api/send-license-email';
+        
+        const emailResponse = await fetch(apiUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
