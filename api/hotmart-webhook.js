@@ -93,20 +93,50 @@ export default async function handler(req, res) {
       };
 
       await collection.insertOne(license);
+      await client.close();
 
       console.log('✅ Licença criada:', licenseKey, 'para', buyer.email);
 
-      // Email será enviado manualmente via script PowerShell ou integração Hotmart
-      // Use o script: gerar-e-enviar-chave.ps1
+      // Envia email automaticamente
+      try {
+        const emailResponse = await fetch(`${process.env.VERCEL_URL || 'https://controlaai-api.vercel.app'}/api/send-license-email`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            licenseKey,
+            email: buyer.email,
+            nome: buyer.name || 'Cliente',
+            adminKey: process.env.ADMIN_KEY || 'controlaai-admin-2025-secret-key'
+          })
+        });
 
-      return res.status(200).json({
-        success: true,
-        message: 'Licença gerada com sucesso',
-        licenseKey,
-        email: buyer.email,
-        emailSent: false,
-        instructions: 'Use o script gerar-e-enviar-chave.ps1 para enviar email ao cliente'
-      });
+        const emailResult = await emailResponse.json();
+        
+        console.log('📧 Resultado envio email:', emailResult);
+
+        return res.status(200).json({
+          success: true,
+          message: 'Licença gerada e email enviado',
+          licenseKey,
+          email: buyer.email,
+          emailSent: emailResult.success,
+          emailDetails: emailResult
+        });
+
+      } catch (emailError) {
+        console.error('❌ Erro ao enviar email:', emailError);
+        
+        return res.status(200).json({
+          success: true,
+          message: 'Licença gerada mas email falhou',
+          licenseKey,
+          email: buyer.email,
+          emailSent: false,
+          emailError: emailError.message
+        });
+      }
     }
 
     if (event === 'CHARGEBACK' || event === 'CANCELLATION') {
